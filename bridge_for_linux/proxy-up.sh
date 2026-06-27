@@ -7,6 +7,10 @@
 # =====================================================================
 set -u
 
+# Node.js установлен локально в ~/.local (без sudo) — добавляем в PATH,
+# чтобы npx/node находились независимо от того, как запущен скрипт.
+export PATH="$HOME/.local/bin:$PATH"
+
 LOG_DIR="$HOME/.pm-bridge-logs"
 CONFIG="/run/media/paul/DATA/pm_developer/pm-filesystem-mcp/superassistant-config.json"
 PROXY_VERSION="0.1.8"   # зафиксировано (без @latest)
