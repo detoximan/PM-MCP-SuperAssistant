@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "pm-filesystem": {
+      "command": "python3",
+      "args": ["/run/media/paul/DATA/pm_developer/pm-filesystem-mcp/stdio_server.py"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    }
+  }
+}
