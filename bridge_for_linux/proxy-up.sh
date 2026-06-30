@@ -12,7 +12,7 @@ set -u
 export PATH="$HOME/.local/bin:$PATH"
 
 LOG_DIR="$HOME/.pm-bridge-logs"
-CONFIG="/run/media/paul/DATA/pm_developer/pm-filesystem-mcp/superassistant-config.json"
+CONFIG="/home/paul/pm_developer/pm-filesystem-mcp/superassistant-config.json"
 PROXY_VERSION="0.1.8"   # зафиксировано (без @latest)
 RESTART_DELAY=8         # пауза авто-перезапуска, сек
 mkdir -p "$LOG_DIR"

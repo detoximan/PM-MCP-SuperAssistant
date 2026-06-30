@@ -2,7 +2,7 @@
   "mcpServers": {
     "pm-filesystem": {
       "command": "python3",
-      "args": ["/run/media/paul/DATA/pm_developer/pm-filesystem-mcp/stdio_server.py"]
+      "args": ["/home/paul/pm_developer/pm-filesystem-mcp/stdio_server.py"]
     },
     "github": {
       "command": "npx",
