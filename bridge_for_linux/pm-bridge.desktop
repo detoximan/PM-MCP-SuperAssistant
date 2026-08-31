@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Автозапуск при входе в систему (GNOME).
+# Кладётся в ~/.config/autostart/pm-bridge.desktop
+Type=Application
+Name=PM Bridge
+Comment=MCP-сервер и Cloudflare-туннель
+Exec=/home/paul/.local/bin/pm-bridge.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

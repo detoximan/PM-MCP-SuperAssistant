@@ -1,0 +1,1 @@
+{"root":["../index.mts","../lib/consts.ts","../lib/i18n-dev.ts","../lib/i18n-prod.ts","../lib/i18n.ts","../lib/index.ts","../lib/prepare_build.ts","../lib/set_related_locale_import.ts","../lib/types.ts"],"version":"5.8.1-rc"}

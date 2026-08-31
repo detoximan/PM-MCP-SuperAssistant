@@ -1,0 +1,8 @@
+# Замени YOUR-TUNNEL-ID и mcp.yourdomain.com на свои значения.
+tunnel: 1af6a076-9951-47ac-81ca-f7b5203cfdc8
+credentials-file: /Users/pavelmalyk/.cloudflared/1af6a076-9951-47ac-81ca-f7b5203cfdc8.json
+
+ingress:
+  - hostname: mcp.kobuleti-holiday.com
+    service: http://localhost:8766
+  - service: http_status:404

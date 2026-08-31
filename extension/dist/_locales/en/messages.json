@@ -1,0 +1,30 @@
+{
+  "extensionDescription": {
+    "description": "Extension description",
+    "message": "PM MCP Super Assistant - MCP Assistant for Web Chats"
+  },
+  "extensionName": {
+    "description": "Extension name",
+    "message": "PM MCP Super Assistant"
+  },
+  "toggleTheme": {
+    "message": "Toggle theme"
+  },
+  "loading": {
+    "message": "Loading..."
+  },
+  "greeting": {
+    "description": "Greeting message",
+    "message": "Hello, My name is $NAME$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "John Doe"
+      }
+    }
+  },
+  "hello": {
+    "description": "Placeholder example",
+    "message": "Hello $1"
+  }
+}

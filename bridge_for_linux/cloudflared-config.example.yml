@@ -1,0 +1,16 @@
+# Конфиг Cloudflare-туннеля для Linux.
+# Кладётся в ~/.cloudflared/config.yml
+# UUID и путь к credentials берутся из вывода `cloudflared tunnel create pm-linux`.
+# Ниже — текущие рабочие значения этой машины (UUID туннеля не является секретом;
+# секрет — это сам файл .json, который остаётся локально и НЕ коммитится).
+tunnel: 5c051f39-30bd-4d52-8d72-a2cf12d180ba
+credentials-file: /home/paul/.cloudflared/5c051f39-30bd-4d52-8d72-a2cf12d180ba.json
+
+ingress:
+  - hostname: mcp-linux.kobuleti-holiday.com
+    service: http://localhost:8766
+    # У MCP-сервера встроенная DNS-rebind защита: принимает только Host 127.0.0.1:8766.
+    # Без этой строки снаружи приходит Host mcp-linux... → ошибка 421 Invalid Host header.
+    originRequest:
+      httpHostHeader: "127.0.0.1:8766"
+  - service: http_status:404
