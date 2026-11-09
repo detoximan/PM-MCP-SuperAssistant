@@ -21,6 +21,9 @@ import struct
 import sys
 import tempfile
 import subprocess
+import signal
+import threading
+import pathlib
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
@@ -172,7 +175,7 @@ def get_file_info(path: str):
 # --- Git-команды ---
 # Работают только внутри корневой папки и только в папках, где есть .git.
 # GIT_TERMINAL_PROMPT=0 не даёт git "зависнуть", если он вдруг запросит логин/пароль.
-GIT_TIMEOUT = 300
+GIT_TIMEOUT = 600
 
 
 def _resolve_repo(repo: str):
@@ -249,8 +252,8 @@ def git_log(repo: str, count: int = 10):
 FETCH_TIMEOUT = 120
 MAX_FETCH_BYTES = 3_000_000
 MAX_DOWNLOAD_BYTES = 25_000_000
-MAX_PYTHON_OUTPUT = 50_000
-PYTHON_TIMEOUT_MAX = 600
+MAX_PYTHON_OUTPUT = 100_000
+PYTHON_TIMEOUT_MAX = 900
 
 
 class _TextExtractor(HTMLParser):
@@ -619,9 +622,62 @@ def image_info(path: str):
     return _wrap(_run)
 
 
+# --- Управление процессами и очередью выполнения Python ---
+_active_processes: set[subprocess.Popen] = set()
+_process_lock = threading.Lock()
+
+
+def _cleanup_stale_processes():
+    """Удалить завершённые процессы из списка активных."""
+    with _process_lock:
+        stale = [p for p in _active_processes if p.poll() is not None]
+        for p in stale:
+            _active_processes.discard(p)
+
+
+def _kill_all_active_processes() -> int:
+    """Принудительно завершить все запущенные подпроцессы и их группы."""
+    with _process_lock:
+        killed = 0
+        for proc in list(_active_processes):
+            if proc.poll() is None:
+                try:
+                    if hasattr(os, "killpg") and hasattr(proc, "pid"):
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    else:
+                        proc.kill()
+                    killed += 1
+                except Exception:
+                    try:
+                        proc.kill()
+                        killed += 1
+                    except Exception:
+                        pass
+            _active_processes.discard(proc)
+        return killed
+
+
 @mcp.tool()
-def run_python(code: str = "", working_dir: str = "", timeout: int = 300, code_base64: str = ""):
-    """Запустить Python-код локально. working_dir — папка внутри корня. Код выполняется без shell, с timeout (по умолчанию 300 сек, максимум 600)."""
+def clear_process_queue():
+    """Принудительно остановить все зависшие фоновые Python-скрипты и очистить временные файлы."""
+    def _run():
+        killed = _kill_all_active_processes()
+        temp_dir = pathlib.Path(tempfile.gettempdir()) / "pm_mcp_runs"
+        cleaned_files = 0
+        if temp_dir.exists():
+            for f in temp_dir.glob("*.py"):
+                try:
+                    f.unlink()
+                    cleaned_files += 1
+                except Exception:
+                    pass
+        return f"Очередь очищена: принудительно остановлено процессов: {killed}, удалено временных файлов: {cleaned_files}."
+    return _wrap(_run)
+
+
+@mcp.tool()
+def run_python(code: str = "", working_dir: str = "", timeout: int = 600, code_base64: str = "", kill_previous: bool = False):
+    """Запустить Python-код локально. working_dir — папка внутри корня. Код выполняется без shell, с timeout (по умолчанию 600 сек / 10 мин, максимум 900 сек / 15 мин)."""
     def _run():
         cwd = fs._resolve(working_dir)
         if not cwd.exists() or not cwd.is_dir():
@@ -634,27 +690,80 @@ def run_python(code: str = "", working_dir: str = "", timeout: int = 300, code_b
                 actual_code = base64.b64decode(code_base64).decode("utf-8")
             except Exception as e:
                 raise FSError(f"Base64 decode error: {e}")
-        with tempfile.NamedTemporaryFile("w", suffix=".py", encoding="utf-8", delete=False, dir=str(cwd)) as tmp:
+
+        if kill_previous:
+            _kill_all_active_processes()
+        else:
+            _cleanup_stale_processes()
+
+        # Выделенная временная папка для скриптов, чтобы не засорять корень проекта
+        temp_runs_dir = pathlib.Path(tempfile.gettempdir()) / "pm_mcp_runs"
+        temp_runs_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            temp_runs_dir.chmod(0o700)
+        except Exception:
+            pass
+
+        with tempfile.NamedTemporaryFile("w", suffix=".py", encoding="utf-8", delete=False, dir=str(temp_runs_dir)) as tmp:
             tmp.write(actual_code)
             tmp_path = tmp.name
+
+        child_env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        existing_pythonpath = child_env.get("PYTHONPATH", "")
+        child_env["PYTHONPATH"] = f"{cwd}:{existing_pythonpath}" if existing_pythonpath else str(cwd)
+
+        # Автоматическая поддержка DaVinci Resolve на Linux
+        if sys.platform.startswith("linux"):
+            dvr_modules = "/opt/resolve/Developer/Scripting/Modules"
+            if os.path.exists(dvr_modules) and dvr_modules not in child_env["PYTHONPATH"]:
+                child_env["PYTHONPATH"] = f"{dvr_modules}:{child_env['PYTHONPATH']}"
+            if os.path.exists("/opt/resolve/Developer/Scripting"):
+                child_env.setdefault("RESOLVE_SCRIPT_API", "/opt/resolve/Developer/Scripting")
+            if os.path.exists("/opt/resolve/libs/Fusion/fusionscript.so"):
+                child_env.setdefault("RESOLVE_SCRIPT_LIB", "/opt/resolve/libs/Fusion/fusionscript.so")
+
+        proc = None
         try:
-            proc = subprocess.run(
+            # start_new_session=True изолирует процесс в отдельную группу (setsid),
+            # что гарантирует полное завершение всех дочерних процессов при таймауте через killpg.
+            proc = subprocess.Popen(
                 [sys.executable, tmp_path],
                 cwd=str(cwd),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout_safe,
-                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                start_new_session=True,
+                env=child_env,
             )
+            with _process_lock:
+                _active_processes.add(proc)
+
+            out, err = proc.communicate(timeout=timeout_safe)
         except subprocess.TimeoutExpired:
-            return f"Ошибка: Python-код выполнялся дольше {timeout_safe} сек. и был остановлен."
+            if proc:
+                try:
+                    if hasattr(os, "killpg"):
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    else:
+                        proc.kill()
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                proc.wait()
+            return f"Ошибка: Python-код выполнялся дольше {timeout_safe} сек. и был принудительно остановлен."
         finally:
+            if proc:
+                with _process_lock:
+                    _active_processes.discard(proc)
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
-        out = (proc.stdout or "")
-        err = (proc.stderr or "")
+
+        out = (out or "")
+        err = (err or "")
         combined = f"[exit_code={proc.returncode}]\nSTDOUT:\n{out}\nSTDERR:\n{err}".strip()
         if len(combined) > MAX_PYTHON_OUTPUT:
             combined = combined[:MAX_PYTHON_OUTPUT] + "\n\n[вывод обрезан по лимиту]"
@@ -779,9 +888,9 @@ def search_image_by_text(query: str, count: int = 10):
 
 
 @mcp.tool()
-def ipython(code: str, working_dir: str = "", timeout: int = 300):
-    """Алиас для run_python. Выполнить Python-код локально."""
-    return run_python(code=code, working_dir=working_dir, timeout=timeout)
+def ipython(code: str, working_dir: str = "", timeout: int = 600, kill_previous: bool = False):
+    """Алиас для run_python. Выполнить Python-код локально (по умолчанию 600 сек / 10 мин)."""
+    return run_python(code=code, working_dir=working_dir, timeout=timeout, kill_previous=kill_previous)
 
 
 # --- Notion ---

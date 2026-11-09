@@ -13372,7 +13372,7 @@ class Tu {
     this.config = {
       keepAlive: !0,
       connectionTimeout: 5e3,
-      readTimeout: 3e4,
+      readTimeout: 600000,
       ...t
     }, Ze.debug("Initialized with config:", this.config);
   }

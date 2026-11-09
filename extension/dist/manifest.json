@@ -7,7 +7,7 @@
       "id": "saurabh@mcpsuperassistant.ai"
     }
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "PM MCP Super Assistant",
   "host_permissions": [
     "*://*.perplexity.ai/*",
