@@ -7,7 +7,7 @@
       "id": "saurabh@mcpsuperassistant.ai"
     }
   },
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "PM MCP Super Assistant",
   "host_permissions": [
     "*://*.perplexity.ai/*",
@@ -28,7 +28,10 @@
     "*://*.kimi.com/*",
     "*://*.aistudio.xiaomimimo.com/*",
     "*://*.chat.z.ai/*",
-    "*://*.chat.qwen.ai/*"
+    "*://*.chat.qwen.ai/*",
+    "*://*.arena.ai/*",
+    "*://*.lmarena.ai/*",
+    "*://*.lmsys.org/*"
   ],
   "permissions": [
     "storage",
@@ -187,6 +190,17 @@
     {
       "matches": [
         "*://*.chat.qwen.ai/*"
+      ],
+      "js": [
+        "content/index.iife.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.arena.ai/*",
+        "*://*.lmarena.ai/*",
+        "*://*.lmsys.org/*"
       ],
       "js": [
         "content/index.iife.js"
